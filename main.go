@@ -5,11 +5,19 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 
 	"github.com/sycdtk/gotools/config"
 	"github.com/sycdtk/gotools/csv"
 	"github.com/sycdtk/gotools/logger"
 )
+
+//重名默认补全长度
+const DEFAULT_SIZE = 2
+
+type Record struct {
+	X, Y int
+}
 
 func main() {
 
@@ -18,7 +26,8 @@ func main() {
 	fileName := flag.String("f", "data.csv", "文件名称")
 
 	opType := flag.String("o", "", `r:[replace] ，值匹配r列后，写入w列，若无w列则直接写回r列；
-	t:[transfer] 转换数据，正则匹配r列后，写入w列，若无w列则直接写回r列`)
+	t:[transfer] 转换数据，正则匹配r列后，写入w列，若无w列则直接写回r列；
+	d: 数据列去重，重复数据追加_01、_02`)
 
 	dataSet := flag.String("s", "", "配置文件中的数据组")
 
@@ -28,12 +37,12 @@ func main() {
 
 	flag.Parse()
 
-	if *opType != "r" && *opType != "t" {
+	if *opType != "r" && *opType != "t" && *opType != "d" {
 		logger.Info("Error：o参数输入错误！")
 		os.Exit(-1)
 	}
 
-	if len(*dataSet) == 0 {
+	if (*opType == "r" || *opType == "t") && len(*dataSet) == 0 {
 		logger.Info("Error：s参数为必须参数！")
 		os.Exit(-1)
 	}
@@ -51,11 +60,37 @@ func main() {
 		replace(dataFile, *dataSet, *readCol, *writeCol)
 	} else if *opType == "t" {
 		transfer(dataFile, *dataSet, *readCol, *writeCol)
+	} else if *opType == "d" {
+		duplicateRemoval(dataFile, *readCol)
 	}
 
 	dataFile.Writer(dataFile.Datas, false)
 
 	fmt.Println("Done!")
+}
+
+/*
+数据列去重
+*/
+func duplicateRemoval(dataFile *csv.CSV, readCol int) {
+	//数据集合
+	dataMap := map[string][]*Record{}
+
+	//数据分组
+	for r, data := range dataFile.Datas {
+		dataMap[data[readCol]] = append(dataMap[data[readCol]], &Record{r, readCol})
+	}
+
+	//重复数据替换
+	for _, v := range dataMap {
+		//存在重复数据
+		if len(v) > 1 {
+			for i, d := range v {
+				dataFile.Datas[d.X][d.Y] = dataFile.Datas[d.X][d.Y] + numToStr(i+1, DEFAULT_SIZE)
+			}
+		}
+	}
+
 }
 
 /*
@@ -90,6 +125,17 @@ func replace(dataFile *csv.CSV, dataSet string, readCol, writeCol int) {
 			}
 		}
 	}
+}
+
+func numToStr(num, size int) string {
+
+	ns := strconv.Itoa(num)
+	l := size - len(ns)
+	for i := 0; i < l; i++ {
+		ns = "0" + ns
+	}
+
+	return "_" + ns
 }
 
 func usage() {
