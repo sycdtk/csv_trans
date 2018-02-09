@@ -16,4 +16,5 @@ func TestRe(t *testing.T) {
 	data["aa"] = append(data["aa"], &Record{3, 4})
 
 	t.Log(data["aa"][1].X)
+
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/sycdtk/gotools/config"
 	"github.com/sycdtk/gotools/csv"
-	"github.com/sycdtk/gotools/logger"
 )
 
 //重名默认补全长度
@@ -25,9 +24,11 @@ func main() {
 
 	fileName := flag.String("f", "data.csv", "文件名称")
 
-	opType := flag.String("o", "", `r:[replace] ，值匹配r列后，写入w列，若无w列则直接写回r列；
-	t:[transfer] 转换数据，正则匹配r列后，写入w列，若无w列则直接写回r列；
-	d: 数据列去重，重复数据追加_01、_02`)
+	opType := flag.String("o", "", `r: replace，值匹配r列后，写入w列，若无w列则直接写回r列；
+	t: transfer，转换数据，正则匹配r列后，写入w列，若无w列则直接写回r列；
+	d: duplicate removal，数据列去重，重复数据追加_01、_02；
+	e: exchange，数据列交换，列1与列3交换；
+	re: 正则测试`)
 
 	dataSet := flag.String("s", "", "配置文件中的数据组")
 
@@ -35,38 +36,70 @@ func main() {
 
 	writeCol := flag.Int("w", -1, "匹配第一列后需要写入数据的列，0为第一列")
 
+	re1 := flag.String("re1", "", "正则表达式")
+	re2 := flag.String("re2", "", "正则匹配测试字符串")
+
 	flag.Parse()
 
-	if *opType != "r" && *opType != "t" && *opType != "d" {
-		logger.Info("Error：o参数输入错误！")
+	if *opType != "r" && *opType != "t" && *opType != "d" && *opType != "e" && *opType != "re" {
+		fmt.Println("Error：o参数输入错误！")
 		os.Exit(-1)
 	}
 
-	if (*opType == "r" || *opType == "t") && len(*dataSet) == 0 {
-		logger.Info("Error：s参数为必须参数！")
+	if (*opType == "r" || *opType == "t") && (len(*dataSet) == 0 || *readCol < 0) {
+		fmt.Println("Error：操作类型为r或t时，参数s和r为必须参数！")
 		os.Exit(-1)
 	}
 
-	if *readCol < 0 {
-		logger.Info("Error：r参数为必须参数！")
+	if *opType == "e" && (*readCol < 0 || *writeCol < 0) {
+		fmt.Println("Error：操作类型为e时，参数r和w为必须参数！")
 		os.Exit(-1)
 	}
 
-	dataFile := csv.NewCSV(*fileName)
-
-	dataFile.Reader()
-
-	if *opType == "r" {
-		replace(dataFile, *dataSet, *readCol, *writeCol)
-	} else if *opType == "t" {
-		transfer(dataFile, *dataSet, *readCol, *writeCol)
-	} else if *opType == "d" {
-		duplicateRemoval(dataFile, *readCol)
+	if *opType == "re" && (len(*re1) == 0 || len(*re2) == 0) {
+		fmt.Println("Error：操作类型为re时，参数re1和re2为必须参数！")
+		os.Exit(-1)
 	}
 
-	dataFile.Writer(dataFile.Datas, false)
+	if *opType == "re" {
+		reTest(*re1, *re2)
+	} else {
+		dataFile := csv.NewCSV(*fileName)
 
-	fmt.Println("Done!")
+		dataFile.Reader()
+
+		if *opType == "r" {
+			replace(dataFile, *dataSet, *readCol, *writeCol)
+		} else if *opType == "t" {
+			transfer(dataFile, *dataSet, *readCol, *writeCol)
+		} else if *opType == "d" {
+			duplicateRemoval(dataFile, *readCol)
+		} else if *opType == "e" {
+			exchange(dataFile, *readCol, *writeCol)
+		}
+
+		dataFile.Writer(dataFile.Datas, false)
+
+		fmt.Println("Done!")
+	}
+
+}
+
+/*
+正则测试
+*/
+func reTest(re1, re2 string) {
+	re, _ := regexp.Compile(re1)
+	fmt.Println(re1, re2, re.MatchString(re2))
+}
+
+/*
+数据列交换
+*/
+func exchange(dataFile *csv.CSV, readCol, writeCol int) {
+	for _, data := range dataFile.Datas {
+		data[readCol], data[writeCol] = data[writeCol], data[readCol]
+	}
 }
 
 /*
