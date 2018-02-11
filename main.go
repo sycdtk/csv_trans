@@ -34,6 +34,7 @@ func main() {
 	e: exchange，数据列交换，r列与w列交换；
 	x: extract，正则提取数据，r列正则匹配分组，写入w列。仅适用数据集合s的key值；
 	tr: trim，去除列前后空白字符；
+	f: fill，对于r列数据相等的数据，补全其w列数据，不为空的数据将被补全；
 	re: 正则测试`)
 
 	dataSet := flag.String("s", "", "配置文件中的数据组")
@@ -49,7 +50,7 @@ func main() {
 
 	config.Load(*configFile)
 
-	if *opType != "r" && *opType != "t" && *opType != "d" && *opType != "e" && *opType != "x" && *opType != "tr" && *opType != "re" {
+	if *opType != "r" && *opType != "t" && *opType != "d" && *opType != "e" && *opType != "x" && *opType != "f" && *opType != "tr" && *opType != "re" {
 		fmt.Println("Error：o参数输入错误！")
 		os.Exit(-1)
 	}
@@ -59,8 +60,8 @@ func main() {
 		os.Exit(-1)
 	}
 
-	if *opType == "e" && (*readCol < 0 || *writeCol < 0) {
-		fmt.Println("Error：操作类型为e时，参数r和w为必须参数！")
+	if (*opType == "e" || *opType == "f") && (*readCol < 0 || *writeCol < 0) {
+		fmt.Println("Error：操作类型为e或f时，参数r和w为必须参数！")
 		os.Exit(-1)
 	}
 
@@ -96,6 +97,8 @@ func main() {
 			exchange(dataFile, *readCol, *writeCol)
 		} else if *opType == "x" {
 			extract(dataFile, *dataSet, *readCol, *writeCol)
+		} else if *opType == "f" {
+			fill(dataFile, *readCol, *writeCol)
 		} else if *opType == "tr" {
 			trim(dataFile, *readCol)
 		}
@@ -105,6 +108,42 @@ func main() {
 		fmt.Println("Done!")
 	}
 
+}
+
+/*
+对于值相同的列，补全数据
+*/
+func fill(dataFile *csv.CSV, readCol, wirteCol int) {
+	//数据集合
+	dataMap := map[string][]*Record{}
+
+	for r, data := range dataFile.Datas {
+		//数据分组
+		dataMap[data[readCol]] = append(dataMap[data[readCol]], &Record{r, readCol})
+	}
+
+	//数据补全
+	for _, v := range dataMap {
+		logger.Debug(len(v))
+		//存在重复数据
+		if len(v) > 1 {
+			fillStr := ""
+			//提取补全数据
+			for _, d := range v {
+				if len(dataFile.Datas[d.X][wirteCol]) > 0 {
+					//超过2条记录的，以最后一条记录为准
+					fillStr = dataFile.Datas[d.X][wirteCol]
+				}
+			}
+
+			logger.Debug(fillStr)
+
+			//补全数据
+			for _, d := range v {
+				dataFile.Datas[d.X][wirteCol] = fillStr
+			}
+		}
+	}
 }
 
 /*
