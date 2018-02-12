@@ -290,6 +290,6 @@ func numToStr(num, size int) string {
 }
 
 func usage() {
-	fmt.Println(" CSV Tool V1.0 ;)\n")
+	fmt.Println(" CSV Tool V1.0 ;)\nhttps://github.com/sycdtk/csv_trans\n")
 	flag.PrintDefaults()
 }
